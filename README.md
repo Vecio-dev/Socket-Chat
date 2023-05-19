@@ -63,6 +63,7 @@ The function first defines the header format using the `hdr_fmt` string, which s
 | `s`    | char[]       | bytes             |               |
 | `i`    | int          | integer           | 4             |
 | `I`    | unsigned int | integer           | 4             |
+
 The packet is then created by packing the header fields and the data using `struct.pack()`. The header fields are passed as arguments to struct.pack(), along with their corresponding format specifiers.
 
 Finally, the `send_length()` function is called to send the packet length followed by the packet data.
