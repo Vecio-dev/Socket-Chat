@@ -7,10 +7,10 @@ I defined a protocol to control the communication between the client and the ser
 # Packet Format:
 The packet format consists of a header and a data section. The header contains the Type, Username, and Length fields, while the data section holds the actual data being transmitted.
 
-The header is structured as a table with the following columns: Type, Username, Length, and Data. Each column represents a specific field in the packet.
+The header is structured as a table with the following columns: Type, Room, Username, Length, and Data. Each column represents a specific field in the packet.
 
-| Type | Username | Length | Data |
-|------|----------|--------|------|
+| Type | Room | Username | Length | Data |
+|------|------|----------|--------|------|
 
 
 #
@@ -20,13 +20,21 @@ The `Type` field is 1 byte in size and specifies the type of the message being s
 Type = {
     'JOIN': b'\x01',
     'LEAVE': b'\x02',
-    'MESSAGE': b'\x03'
+    'MESSAGE': b'\x03',
+    'SERVER': b'\x04'
 }
 ```
 <li>`JOIN`: This message is emitted when a user joins the chat.</li>
-<li>`LEAVE`: This message is emitted when a userleaves the chat.</li>
-<li>`MESSAGE`: This message is emitted when a usersends a message.</li>
+<li>`LEAVE`: This message is emitted when a user leaves the chat.</li>
+<li>`MESSAGE`: This message is emitted when a user sends a message.</li>
+<li>`SERVER`: This message is emitted when the server sends a message.</li>
 
+#
+**Room:**  
+The `Room` field is 8 bytes in size and represents the room id in which the message is being sent. In each packet, the room id is normalized to a length of 8 bytes. If the room id is shorter than 8 bytes, null bytes ('\0') are appended to fill the remaining space.
+```py
+room += ('\0' * (8 - len(room)))
+```
 #
 **Username:**  
 The `Username` field is 8 bytes in size and represents the username of the sender. In each packet, the username is normalized to a length of 8 bytes. If the username is shorter than 8 bytes, null bytes ('\0') are appended to fill the remaining space.
@@ -44,15 +52,15 @@ The `Data` field is a character array of variable length and contains the actual
 # Send/Recieve Methods
 The provided code includes two functions: send_message() and recv_message(). These functions handle the sending and receiving of packets according to the defined protocol.  
 
-The `send_message()` function is responsible for sending a packet over a socket connection. It takes the following parameters: `sock` (the socket connection), `type` (the message type), `username` (the sender's username), and `data` (the message data).
+The `send_message()` function is responsible for sending a packet over a socket connection. It takes the following parameters: `sock` (the socket connection), `type` (the message type), `room` (the room id), `username` (the sender's username), and `data` (the message data).
 ```py
-def send_message(sock, type, username, data):
-    hdr_fmt = f"c8si{len(data)}s"
+def send_message(sock, type: bytes, room: str, username: str, data: str):
+    hdr_fmt = f"c8s8si{len(data)}s"
 
-    # Username resolve
     username += ('\0' * (8 - len(username)))
+    room += ('\0' * (8 - len(room)))
 
-    packet = struct.pack(hdr_fmt, type, username.encode(), len(data), data.encode())
+    packet = struct.pack(hdr_fmt, type, room.encode(), username.encode(), len(data), data.encode())
     send_length(sock, packet)
 ```
 The function first defines the header format using the `hdr_fmt` string, which specifies the format of the packet fields using the `struct` module. The `hdr_fmt` string is constructed dynamically based on the length of the `data` parameter.  
@@ -70,10 +78,11 @@ Finally, the `send_length()` function is called to send the packet length follow
 ```py
 def send_length(sock, data):
     length = len(data)
+    if length >= 125000 : return print("Packet too big to be sent (MAX 1Mb)") 
     sock.send(struct.pack('!I', length))
     sock.send(data)
 ```
-The `send_length()` function is responsible for sending the length of the packet before sending the actual packet data.  
+The `send_length()` function is responsible for sending the length of the packet before sending the actual packet data, a packet length can be a maximum of 125000 bytes (1Mb).  
 
 The `recv_message()` function is responsible for receiving a packet from a socket connection. It takes the socket connection (`sock`) as a parameter.
 The function first calls the `recv_length()` function, which receives the length of the next packet sent by the `send_length()` function. The received length is then passed to `sock.recv()` to receive the complete packet.
@@ -86,10 +95,9 @@ def recv_length(sock):
 ```py
 def recv_message(sock):
     data = recv_length(sock)
+    message_length = int.from_bytes(data[16:21], byteorder='big', signed=False)
 
-    message_length = int.from_bytes(data[8:13], byteorder='big', signed=False)
-    
-    hdr_fmt = f"c8si{message_length}s"
+    hdr_fmt = f"c8s8si{message_length}s"
     return struct.unpack(hdr_fmt, data)
 ```
 The length of the `Data` field of the packet is then retrieved from the packet and stored in the `message_length` variable in order to format the header (`hdr_fmt`) and unpack the struct. The unpacked values are returned.

@@ -1,4 +1,3 @@
-import string
 import struct
 from typing import Set
 
@@ -50,14 +49,12 @@ class Room:
 def send_message(sock, type: bytes, room: str, username: str, data: str):
     hdr_fmt = f"c8s8si{len(data)}s"
 
-    # Username resolve
     username += ('\0' * (8 - len(username)))
     room += ('\0' * (8 - len(room)))
 
     packet = struct.pack(hdr_fmt, type, room.encode(), username.encode(), len(data), data.encode())
     send_length(sock, packet)
 
-# 1 8 8 4 N
 def recv_message(sock):
     data = recv_length(sock)
     message_length = int.from_bytes(data[16:21], byteorder='big', signed=False)

@@ -1,5 +1,4 @@
 import socket
-from struct import pack
 import threading
 from protocol import *
 
