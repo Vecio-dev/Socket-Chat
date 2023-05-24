@@ -6,7 +6,6 @@ host      = socket.gethostname()
 host_ip   = socket.gethostbyname(host)
 port      = 7070 
 
-clients   = set()
 rooms     = set()
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
