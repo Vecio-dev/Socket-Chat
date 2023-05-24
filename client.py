@@ -23,6 +23,9 @@ try:
 
      print("Enter room id:")
      room_id = input()
+     while len(room_id) > 8 or len(room_id) < 3:
+          print("Room ID must be maximum 8 characters long and longer than 3")
+          room_id = input()
 
      print("Enter nickname (MAX 8 chars)")
      username = input()
