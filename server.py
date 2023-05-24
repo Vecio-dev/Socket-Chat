@@ -6,7 +6,9 @@ from protocol import *
 host      = socket.gethostname()
 host_ip   = socket.gethostbyname(host)
 port      = 7070 
+
 clients   = set()
+rooms = set()
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind((host_ip, port))
@@ -14,29 +16,40 @@ server_socket.listen()
 print(f"Listening on {host_ip}:{port}...")
 
 def recv_msg(socket):
-     while True:
+     stop_event = threading.Event()
+
+     while not stop_event.is_set():
           packet = recv_message(socket)
-          # (b'\x03', b'vegeta\x00\x00', 4, b'ciao')
+          packet = Packet(type=packet[0], username=packet[1].decode(), data=packet[3].decode())
           print(packet)
 
-          if packet[0] == Type['JOIN']:
-               new_user = User(client_socket, address, packet[1])
+          if packet.type == Type['JOIN']:
+               new_user = User(client_socket, address, packet.username)
                clients.add(new_user)
 
-               users = "Chat joined. Users: " + ', '.join(user.username.decode() for user in clients)
-               socket.send(users.encode())
+               users = "Chat joined. Users: " + ', '.join(user.username for user in clients)
+               send_message(socket, Type['SERVER'], "", users)
+               send_all(Type['SERVER'], packet.username, f"------- User {packet.username} joined -------")
 
-               join_message = f"------- User {packet[1].decode()} joined -------"
-               send_all(packet[1], join_message)
+          if packet.type == Type['MESSAGE']:
+               send_all(packet.type, packet.username, packet.data)
+          
+          if packet.type == Type['LEAVE']:
+               for c in clients:
+                    if c.username == packet.username:
+                         send_all(Type['SERVER'], "", f"------- User {packet.username} left -------")
+                         c.client.close()
+                         clients.remove(c)
+                         break
 
-          if packet[0] == Type['MESSAGE']:
-               message = packet[1].decode() + ": " + packet[3].decode()
-               send_all(packet[1], message)
+               users = "Users: " + ', '.join(user.username for user in clients)
+               send_all(Type['SERVER'], "", users)
+               stop_event.set()
 
-def send_all(username, message):
+def send_all(type: bytes, username: str, data: str):
      for c in clients:
           if c.username == username: continue
-          c.client.sendall(message.encode())
+          send_message(c.client, type, username, data)
 
 try:
      while True:

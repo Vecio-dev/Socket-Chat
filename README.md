@@ -87,7 +87,6 @@ def recv_length(sock):
 def recv_message(sock):
     data = recv_length(sock)
 
-    #data = sock.recv(1024)
     message_length = int.from_bytes(data[8:13], byteorder='big', signed=False)
     
     hdr_fmt = f"c8si{message_length}s"
