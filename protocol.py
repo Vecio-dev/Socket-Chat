@@ -16,13 +16,14 @@ class User:
         self.username = username
 
 class Packet:
-    def __init__(self, type: bytes, username: str, data: str) -> None:
+    def __init__(self, type: bytes, room: str, username: str, data: str) -> None:
         self.type = type
+        self.room = room
         self.username = username
         self.data = data
     
     def __str__(self) -> str:
-        return f"Type: {self.type}, Username: {self.username}, Data: {self.data}"
+        return f"Type: {self.type}, Room: {self.room}, Username: {self.username}, Data: {self.data}"
 
 class Room:
     def __init__(self, id: str, owner: User) -> None:
@@ -42,22 +43,26 @@ class Room:
     def remove_member(self, member: User) -> None:
         self.members.remove(member)
 
-def send_message(sock, type: bytes, username: str, data: str):
-    hdr_fmt = f"c8si{len(data)}s"
+    def get_users(self) -> str:
+        return "Users: " + ', '.join(user.username for user in self.members) 
+
+
+def send_message(sock, type: bytes, room: str, username: str, data: str):
+    hdr_fmt = f"c8s8si{len(data)}s"
 
     # Username resolve
     username += ('\0' * (8 - len(username)))
+    room += ('\0' * (8 - len(room)))
 
-    packet = struct.pack(hdr_fmt, type, username.encode(), len(data), data.encode())
+    packet = struct.pack(hdr_fmt, type, room.encode(), username.encode(), len(data), data.encode())
     send_length(sock, packet)
 
-# 1 8 4 N
+# 1 8 8 4 N
 def recv_message(sock):
     data = recv_length(sock)
+    message_length = int.from_bytes(data[16:21], byteorder='big', signed=False)
 
-    message_length = int.from_bytes(data[8:13], byteorder='big', signed=False)
-    
-    hdr_fmt = f"c8si{message_length}s"
+    hdr_fmt = f"c8s8si{message_length}s"
     return struct.unpack(hdr_fmt, data)
 
 def send_length(sock, data):

@@ -8,7 +8,7 @@ host_ip   = socket.gethostbyname(host)
 port      = 7070 
 
 clients   = set()
-rooms = set()
+rooms     = set()
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.bind((host_ip, port))
@@ -20,36 +20,49 @@ def recv_msg(socket):
 
      while not stop_event.is_set():
           packet = recv_message(socket)
-          packet = Packet(type=packet[0], username=packet[1].decode(), data=packet[3].decode())
+          packet = Packet(type=packet[0], room=packet[1].decode(), username=packet[2].decode(), data=packet[4].decode())
           print(packet)
 
           if packet.type == Type['JOIN']:
                new_user = User(client_socket, address, packet.username)
-               clients.add(new_user)
 
-               users = "Chat joined. Users: " + ', '.join(user.username for user in clients)
-               send_message(socket, Type['SERVER'], "", users)
-               send_all(Type['SERVER'], packet.username, f"------- User {packet.username} joined -------")
+               this_room = get_room(packet.room)
+               if this_room == None:
+                    this_room = Room(packet.room, new_user)
+                    rooms.add(this_room)
+               else: this_room.add_member(new_user)         
+
+               users = this_room.get_users()
+               send_message(socket, Type['SERVER'], packet.room, "", users)
+               send_all(Type['SERVER'], packet.room, packet.username, f"------- User {packet.username} joined -------")
 
           if packet.type == Type['MESSAGE']:
-               send_all(packet.type, packet.username, packet.data)
+               send_all(packet.type, packet.room, packet.username, packet.data)
           
           if packet.type == Type['LEAVE']:
-               for c in clients:
-                    if c.username == packet.username:
-                         send_all(Type['SERVER'], "", f"------- User {packet.username} left -------")
-                         c.client.close()
-                         clients.remove(c)
+               this_room = get_room(packet.room)
+               for user in this_room.members:
+                    if user.username == packet.username:
+                         send_all(Type['SERVER'], packet.room, "", f"------- User {packet.username} left -------")
+                         user.client.close()
+                         this_room.remove_member(user)
                          break
-
-               users = "Users: " + ', '.join(user.username for user in clients)
-               send_all(Type['SERVER'], "", users)
+               
+               users = this_room.get_users()
+               send_all(Type['SERVER'], packet.room, "", users)
                stop_event.set()
 
-def send_all(type: bytes, username: str, data: str):
-     for c in clients:
-          if c.username == username: continue
-          send_message(c.client, type, username, data)
+def send_all(type: bytes, room: str, username: str, data: str):
+     r = get_room(room)
+     for user in r.members:
+          if user.username == username: continue
+          send_message(user.client, type, room, username, data)
+
+def get_room(id: str):
+     for room in rooms:
+        if room.id == id:
+            return room
+     return None
 
 try:
      while True:
